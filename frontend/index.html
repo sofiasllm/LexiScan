@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexiScan AI - Analyse de Contrats</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        gray: {
+                            750: '#2d3748',
+                            850: '#1a202c',
+                            950: '#0d1117',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-950 border-r border-gray-800 flex flex-col hidden md:flex">
+        <div class="p-6">
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                <i class="fa-solid fa-scale-balanced mr-2 text-blue-400"></i>LexiScan
+            </h1>
+            <p class="text-xs text-gray-500 mt-1">L'Avocat de Poche IA</p>
+        </div>
+
+        <nav class="flex-1 px-4 space-y-2 overflow-y-auto">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Historique</div>
+            <!-- Empty state for history -->
+            <div class="text-sm text-gray-600 italic">Aucune analyse récente.</div>
+        </nav>
+
+        <div class="p-4 border-t border-gray-800">
+            <button class="w-full flex items-center justify-start space-x-3 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors">
+                <i class="fa-solid fa-gear"></i>
+                <span>Paramètres</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col relative w-full">
+        
+        <!-- Header (Mobile Only) -->
+        <header class="md:hidden p-4 border-b border-gray-800 bg-gray-950 flex items-center justify-between">
+            <span class="font-bold text-lg"><i class="fa-solid fa-scale-balanced mr-2 text-blue-400"></i>LexiScan</span>
+            <button class="text-gray-400"><i class="fa-solid fa-bars"></i></button>
+        </header>
+
+        <!-- Chat / Analysis Area -->
+        <div id="content-area" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col items-center justify-center">
+            
+            <!-- Welcome View (Default) -->
+            <div id="welcome-view" class="text-center max-w-2xl animate-fade-in">
+                <div class="mb-8 flex justify-center">
+                    <div class="w-20 h-20 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/10">
+                        <i class="fa-solid fa-file-contract text-4xl text-blue-400"></i>
+                    </div>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Analysez vos contrats en un instant</h2>
+                <p class="text-gray-400 text-lg mb-8">
+                    Déposez votre PDF pour détecter les clauses abusives, les risques cachés et obtenir un résumé juridique clair.
+                </p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
+                        <i class="fa-solid fa-shield-halved text-green-400 mb-2"></i>
+                        <h3 class="font-semibold text-gray-200">Détection de Risques</h3>
+                        <p class="text-sm text-gray-500">Identifie instantanément les clauses dangereuses.</p>
+                    </div>
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
+                        <i class="fa-solid fa-highlighter text-yellow-400 mb-2"></i>
+                        <h3 class="font-semibold text-gray-200">Surlignage IA</h3>
+                        <p class="text-sm text-gray-500">Visualisez les problèmes directement sur le document.</p>
+                    </div>
+                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
+                        <i class="fa-solid fa-scale-unbalanced text-purple-400 mb-2"></i>
+                        <h3 class="font-semibold text-gray-200">Score Juridique</h3>
+                        <p class="text-sm text-gray-500">Évaluation globale de la sécurité du contrat.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading View -->
+            <div id="loading-view" class="hidden flex flex-col items-center justify-center">
+                <div class="relative w-16 h-16 mb-4">
+                    <div class="absolute inset-0 rounded-full border-4 border-gray-700"></div>
+                    <div class="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                </div>
+                <p class="text-gray-300 font-medium animate-pulse">Lecture du contrat en cours...</p>
+                <p class="text-sm text-gray-500 mt-2">L'IA de LexiScan analyse chaque clause.</p>
+            </div>
+
+            <!-- Results View -->
+            <div id="results-view" class="hidden w-full h-full flex flex-col md:flex-row gap-6">
+                <!-- PDF Viewer Column -->
+                <div class="flex-1 bg-gray-950 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+                    <div class="bg-gray-900 border-b border-gray-800 px-4 py-2 flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-300 flex items-center">
+                            <i class="fa-regular fa-file-pdf mr-2"></i> <span id="filename-display">contrat.pdf</span>
+                        </span>
+                        <div class="flex space-x-2">
+                            <!-- Zoom controls could go here -->
+                        </div>
+                    </div>
+                    <div class="flex-1 relative bg-gray-800/50">
+                        <embed id="pdf-viewer" src="" type="application/pdf" class="w-full h-full" />
+                        <div id="pdf-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                            Chargement du visuel...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Panel Column -->
+                <div class="w-full md:w-96 flex flex-col gap-4 overflow-y-auto">
+                    <!-- Global Card -->
+                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-3">Diagnostic Global</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-3xl font-bold" id="score-display">--</span>
+                            <div class="px-3 py-1 rounded-full text-xs font-bold uppercase" id="risk-badge">
+                                --
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-300" id="global-summary">
+                            --
+                        </p>
+                    </div>
+
+                    <!-- Clauses List -->
+                    <div class="flex-1 overflow-y-auto pr-2 space-y-3" id="clauses-list">
+                        <!-- Clauses will be injected here via JS -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Input Area (Bottom) -->
+        <div class="p-4 md:p-6 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-10">
+            <div class="max-w-3xl mx-auto drop-zone-container relative">
+                <form id="upload-form" class="relative group">
+                    <input type="file" id="file-input" class="hidden" accept="application/pdf" />
+                    
+                    <div id="drop-zone" class="w-full bg-gray-800/80 hover:bg-gray-800 text-gray-100 rounded-xl border border-gray-700 hover:border-blue-500/50 shadow-lg transition-all duration-200 p-1 pl-4 pr-1 flex items-center justify-between min-h-[60px]">
+                        
+                        <div class="flex items-center text-gray-400 group-hover:text-gray-300 transition-colors cursor-pointer flex-1" onclick="document.getElementById('file-input').click()">
+                            <div class="p-2 hover:bg-gray-700 rounded-lg transition-colors mr-3">
+                                <i class="fa-solid fa-paperclip text-lg"></i>
+                            </div>
+                            <span id="input-placeholder">Télécharger un contrat PDF...</span>
+                        </div>
+
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center flex" id="analyze-btn" disabled>
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </button>
+                    </div>
+
+                    <!-- Draggable Overlay -->
+                    <div id="drag-overlay" class="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-500 rounded-xl flex items-center justify-center backdrop-blur-sm opacity-0 pointer-events-none transition-opacity font-semibold text-blue-200">
+                        Déposez le fichier ici
+                    </div>
+                </form>
+                <div class="text-center mt-2">
+                    <p class="text-xs text-gray-500">LexiScan peut faire des erreurs. Vérifiez toujours les informations importantes.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="fixed top-5 right-5 bg-red-500 text-white px-6 py-4 rounded-xl shadow-2xl transform translate-x-full transition-transform duration-300 flex items-center gap-3 z-50">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="error-message">Une erreur est survenue.</span>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="script.js"></script>
+</body>
+</html>
