@@ -6,3 +6,4 @@ openai
 pdfplumber
 unidecode
 python-dotenv
+pymupdf

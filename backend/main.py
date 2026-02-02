@@ -1,101 +1,150 @@
 import os
+import base64
+import fitz  # PyMuPDF
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import pdfplumber
-import io
-from unidecode import unidecode
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement depuis le fichier .env
+# Import explicit models to avoid circular dependencies or import errors
+from models import AnalysisResponse, ClauseAnalysis
+from analyzer import ContractAnalyzer
+
+# Charger les variables d'environnement
 load_dotenv()
 
-from analyzer import ContractAnalyzer
-from models import DocumentAnalysis
+app = FastAPI(title="LexiScan API")
 
-app = FastAPI(title="L'Avocat de Poche API")
-
-# Config CORS pour le frontend Next.js
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialisation Analyzer
 API_KEY = os.getenv("OPENAI_API_KEY")
 analyzer = ContractAnalyzer(api_key=API_KEY) if API_KEY else None
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "message": "LexiScan Backend Ready"}
 
-@app.post("/analyze", response_model=DocumentAnalysis)
+@app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_document(file: UploadFile = File(...)):
+    """
+    Endpoint principal : Reçoit un PDF, l'analyse via IA, surligne les risques, 
+    et renvoie le résultat + PDF modifié.
+    """
     if not analyzer:
-        raise HTTPException(status_code=500, detail="OpenAI API Key not configured on server. Please check .env file.")
+         # Fallback gracieux si pas de clé API, pour ne pas casser le front
+         return AnalysisResponse(
+             status="Erreur",
+             message="Configuration serveur incomplète (API Key manquante).",
+             clauses=[],
+             pdf_base64=None
+         )
 
-    filename = file.filename
-    content_type = file.content_type
-    
+    # 1. Lire le fichier en mémoire
+    try:
+        file_bytes = await file.read()
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+    except Exception as e:
+        print(f"PDF Error: {e}")
+        return AnalysisResponse(
+            status="Erreur",
+            message="Le fichier envoyé n'est pas un PDF valide.",
+            clauses=[],
+            pdf_base64=None
+        )
+
+    # 2. Extraire le texte (Tout le texte, pas de filtre)
     full_text = ""
-
-    # Extraction sommaire (MVP)
-    if content_type == "application/pdf":
-        try:
-            file_bytes = await file.read()
-            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                for page in pdf.pages:
-                    extracted = page.extract_text()
-                    if extracted:
-                        full_text += extracted + "\n\n"
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"PDF parsing error: {e}")
-    elif content_type.startswith("text/"):
-        full_text = (await file.read()).decode("utf-8")
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF or Text.")
-
-    if not full_text.strip():
-        raise HTTPException(status_code=400, detail="No text extracted from document.")
-
-    # Lancement Analyse
-    clauses = analyzer.analyze_text(full_text)
+    for page in doc:
+        full_text += page.get_text() + "\n"
     
-    # Calcul Score Global (Moyenne pondérée simple pour l'instant)
-    # Rouge = 100 pts de risque, Orange = 50, Vert = 0
-    risk_score = 0
-    if clauses:
-        total_risk = sum([100 if c.analysis.risk_level == "ROUGE" else (50 if c.analysis.risk_level == "ORANGE" else 0) for c in clauses])
-        risk_score = total_risk / len(clauses)
+    # Sécurité document vide
+    if len(full_text.strip()) < 10:
+        doc_bytes = doc.tobytes()
+        pdf_b64 = base64.b64encode(doc_bytes).decode('utf-8')
+        doc.close()
+        return AnalysisResponse(
+            status="Avertissement",
+            message="Ce document semble vide ou scanné (image). L'IA ne peut pas lire le texte.",
+            clauses=[],
+            pdf_base64=pdf_b64
+        )
 
-    import base64
+    # 3. Analyse AI (On analyse TOUT, pas de filtre "Hors Sujet")
+    # L'analyzer a déjà été mis à jour pour être permissif, on l'appelle directement.
+    try:
+        analysis_json = analyzer.analyze_full_text(full_text)
+    except Exception as e:
+        print(f"AI Analysis Error: {e}")
+        # En cas d'erreur IA, on renvoie quand même le PDF original
+        doc_bytes = doc.tobytes()
+        pdf_b64 = base64.b64encode(doc_bytes).decode('utf-8')
+        doc.close()
+        return AnalysisResponse(
+            status="Erreur",
+            message="L'IA n'a pas pu traiter ce document (Erreur OpenAI).",
+            clauses=[],
+            pdf_base64=pdf_b64
+        )
 
-    # Encode file content to Base64 for frontend display
-    pdf_base64 = None
-    if content_type == "application/pdf":
+    # 4. Traitement & Surlignage (PyMuPDF)
+    clauses_data = analysis_json.get("clauses", [])
+    clauses_objs = []
+    
+    for c_dict in clauses_data:
+        # Conversion dict -> Model
         try:
-            # We already read the file above, but 'file.read()' moves the cursor.
-            # Ideally we should capture the bytes once.
-            # However, looking at the code above: 'file_bytes = await file.read()' inside the if block.
-            # But wait, looking at lines 47-48:
-            # if content_type == "application/pdf":
-            #     file_bytes = await file.read()
-            # So we can reuse 'file_bytes' if it exists.
+            clause_obj = ClauseAnalysis(**c_dict)
+            clauses_objs.append(clause_obj)
             
-            # Use the bytes we already read.
-            if 'file_bytes' in locals():
-                 pdf_base64 = base64.b64encode(file_bytes).decode('utf-8')
-        except Exception:
-            pass # Non-critical if visualization fails
+            # Application Surlignage
+            citation = clause_obj.citation_exacte.strip()
+            if citation and len(citation) > 3:
+                # Couleur Rouge pour tout (1, 0, 0)
+                color = (1, 0, 0)
+                
+                # On parcourt toutes les pages
+                for page in doc:
+                    # Recherche exacte
+                    insts = page.search_for(citation)
+                    
+                    # Fallback snippet (40 chars) si citation longue non trouvée
+                    if not insts and len(citation) > 60:
+                        insts = page.search_for(citation[:40])
+                    
+                    if insts:
+                        for inst in insts:
+                            annot = page.add_highlight_annot(inst)
+                            annot.set_colors(stroke=color)
+                            annot.update()
+        except Exception as e:
+            print(f"Skipping clause due to error: {e}")
+            continue
 
-    return DocumentAnalysis(
-        filename=filename,
-        total_clauses=len(clauses),
-        risk_score_global=round(risk_score, 2),
-        clauses=clauses,
+    # 5. Encodage Final (PDF Modifié)
+    try:
+        doc_bytes = doc.tobytes()
+        pdf_base64 = base64.b64encode(doc_bytes).decode('utf-8')
+        doc.close()
+    except Exception as e:
+        print(f"PDF Encoding Error: {e}")
+        doc.close()
+        return AnalysisResponse(
+            status="Erreur", 
+            message="Erreur lors de la génération du PDF modifié.",
+            clauses=[],
+            pdf_base64=None
+        )
+
+    # 6. Réponse Finale
+    return AnalysisResponse(
+        status=analysis_json.get("status", "Safe"),
+        message=analysis_json.get("message", "Analyse terminée."),
+        clauses=clauses_objs,
         pdf_base64=pdf_base64
     )
 

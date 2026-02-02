@@ -1,199 +1,197 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiScan AI - Analyse de Contrats</title>
+    <title>LexiScan AI - Premium Analysis</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            900: '#0f172a', // The requested Dark Premium color
+                            950: '#020617',
+                        }
+                    },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        gray: {
-                            750: '#2d3748',
-                            850: '#1a202c',
-                            950: '#0d1117',
-                        }
                     }
                 }
             }
         }
     </script>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans h-screen flex overflow-hidden">
 
-    <!-- Sidebar -->
-    <aside class="w-64 bg-gray-950 border-r border-gray-800 flex flex-col hidden md:flex">
+<body class="bg-[#0f172a] text-slate-200 font-sans h-screen flex overflow-hidden selection:bg-blue-500/30">
+
+    <!-- Sidebar (Left) -->
+    <aside class="w-72 bg-[#0f172a] border-r border-slate-800 flex flex-col hidden md:flex backdrop-blur-xl">
         <div class="p-6">
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-                <i class="fa-solid fa-scale-balanced mr-2 text-blue-400"></i>LexiScan
+            <h1 class="text-xl font-semibold tracking-tight text-white flex items-center gap-2">
+                <div
+                    class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-scale-balanced text-sm text-white"></i>
+                </div>
+                LexiScan
             </h1>
-            <p class="text-xs text-gray-500 mt-1">L'Avocat de Poche IA</p>
         </div>
 
-        <nav class="flex-1 px-4 space-y-2 overflow-y-auto">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Historique</div>
-            <!-- Empty state for history -->
-            <div class="text-sm text-gray-600 italic">Aucune analyse récente.</div>
+        <div class="px-4 py-2">
+            <button id="btn-nouvelle-analyse"
+                class="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-700 text-slate-300 rounded-xl px-4 py-3 flex items-center gap-3 transition-all duration-200 group">
+                <span
+                    class="w-6 h-6 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-plus"></i>
+                </span>
+                <span class="text-sm font-medium">Nouvelle Analyse</span>
+            </button>
+        </div>
+
+        <nav id="history-list" class="flex-1 px-4 mt-6 space-y-1 overflow-y-auto">
+            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-2">Récent</div>
+            <!-- Dynamic history items will be injected here -->
         </nav>
 
-        <div class="p-4 border-t border-gray-800">
-            <button class="w-full flex items-center justify-start space-x-3 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors">
-                <i class="fa-solid fa-gear"></i>
-                <span>Paramètres</span>
-            </button>
+        <div class="p-4 border-t border-slate-800">
+            <div class="flex items-center gap-3 px-2 py-2">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-400"></div>
+                <div class="text-sm">
+                    <div class="font-medium text-white">Utilisateur Pro</div>
+                    <div class="text-xs text-slate-500">Plan Premium</div>
+                </div>
+            </div>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col relative w-full">
-        
-        <!-- Header (Mobile Only) -->
-        <header class="md:hidden p-4 border-b border-gray-800 bg-gray-950 flex items-center justify-between">
-            <span class="font-bold text-lg"><i class="fa-solid fa-scale-balanced mr-2 text-blue-400"></i>LexiScan</span>
-            <button class="text-gray-400"><i class="fa-solid fa-bars"></i></button>
+    <main class="flex-1 flex flex-col relative bg-[#0f172a]">
+
+        <!-- Mobile Header -->
+        <header
+            class="md:hidden p-4 border-b border-slate-800 flex justify-between items-center bg-[#0f172a]/90 backdrop-blur">
+            <span class="font-semibold text-white">LexiScan</span>
+            <button><i class="fa-solid fa-bars text-slate-400"></i></button>
         </header>
 
-        <!-- Chat / Analysis Area -->
-        <div id="content-area" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col items-center justify-center">
-            
-            <!-- Welcome View (Default) -->
-            <div id="welcome-view" class="text-center max-w-2xl animate-fade-in">
-                <div class="mb-8 flex justify-center">
-                    <div class="w-20 h-20 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/10">
-                        <i class="fa-solid fa-file-contract text-4xl text-blue-400"></i>
-                    </div>
+        <!-- Content Area -->
+        <div id="content-area" class="flex-1 overflow-hidden relative flex flex-col items-center justify-center w-full">
+
+            <!-- 1. Welcome State -->
+            <div id="welcome-view" class="text-center max-w-2xl px-6 animate-fade-in">
+                <div
+                    class="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-800/50 border border-slate-700 shadow-2xl shadow-blue-900/20">
+                    <i class="fa-solid fa-wand-magic-sparkles text-2xl text-blue-400"></i>
                 </div>
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Analysez vos contrats en un instant</h2>
-                <p class="text-gray-400 text-lg mb-8">
-                    Déposez votre PDF pour détecter les clauses abusives, les risques cachés et obtenir un résumé juridique clair.
+                <h2 class="text-4xl font-semibold text-white mb-4 tracking-tight">Analyse Juridique IA</h2>
+                <p class="text-slate-400 text-lg mb-8 leading-relaxed">
+                    Déposez votre contrat. Notre IA de pointe détectera les clauses abusives<br> et surlignera les
+                    risques directement sur le document.
                 </p>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
-                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
-                        <i class="fa-solid fa-shield-halved text-green-400 mb-2"></i>
-                        <h3 class="font-semibold text-gray-200">Détection de Risques</h3>
-                        <p class="text-sm text-gray-500">Identifie instantanément les clauses dangereuses.</p>
-                    </div>
-                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
-                        <i class="fa-solid fa-highlighter text-yellow-400 mb-2"></i>
-                        <h3 class="font-semibold text-gray-200">Surlignage IA</h3>
-                        <p class="text-sm text-gray-500">Visualisez les problèmes directement sur le document.</p>
-                    </div>
-                    <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors cursor-default">
-                        <i class="fa-solid fa-scale-unbalanced text-purple-400 mb-2"></i>
-                        <h3 class="font-semibold text-gray-200">Score Juridique</h3>
-                        <p class="text-sm text-gray-500">Évaluation globale de la sécurité du contrat.</p>
-                    </div>
-                </div>
             </div>
 
-            <!-- Loading View -->
-            <div id="loading-view" class="hidden flex flex-col items-center justify-center">
-                <div class="relative w-16 h-16 mb-4">
-                    <div class="absolute inset-0 rounded-full border-4 border-gray-700"></div>
-                    <div class="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+            <!-- 2. Loading State -->
+            <div id="loading-view" class="hidden flex flex-col items-center">
+                <div class="relative w-20 h-20">
+                    <!-- Custom Spinner -->
+                    <div class="absolute inset-0 rounded-full border-t-2 border-b-2 border-blue-500 animate-spin"></div>
+                    <div
+                        class="absolute inset-4 rounded-full border-t-2 border-b-2 border-indigo-400 animate-spin reverse-spin opacity-70">
+                    </div>
                 </div>
-                <p class="text-gray-300 font-medium animate-pulse">Lecture du contrat en cours...</p>
-                <p class="text-sm text-gray-500 mt-2">L'IA de LexiScan analyse chaque clause.</p>
+                <h3 class="mt-6 text-xl font-medium text-white animate-pulse">Analyse en cours...</h3>
+                <p class="mt-2 text-slate-500 text-sm">Lecture et surlignage du document</p>
             </div>
 
-            <!-- Results View -->
-            <div id="results-view" class="hidden w-full h-full flex flex-col md:flex-row gap-6">
-                <!-- PDF Viewer Column -->
-                <div class="flex-1 bg-gray-950 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
-                    <div class="bg-gray-900 border-b border-gray-800 px-4 py-2 flex items-center justify-between">
-                        <span class="text-sm font-medium text-gray-300 flex items-center">
-                            <i class="fa-regular fa-file-pdf mr-2"></i> <span id="filename-display">contrat.pdf</span>
-                        </span>
-                        <div class="flex space-x-2">
-                            <!-- Zoom controls could go here -->
-                        </div>
-                    </div>
-                    <div class="flex-1 relative bg-gray-800/50">
-                        <embed id="pdf-viewer" src="" type="application/pdf" class="w-full h-full" />
-                        <div id="pdf-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500">
-                            Chargement du visuel...
-                        </div>
-                    </div>
-                </div>
+            <!-- 3. Results State (Overlay Fullscreen-ish) -->
+            <div id="results-view" class="hidden absolute inset-0 bg-[#0f172a] z-20 flex w-full h-full">
 
-                <!-- Analysis Panel Column -->
-                <div class="w-full md:w-96 flex flex-col gap-4 overflow-y-auto">
-                    <!-- Global Card -->
-                    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
-                        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-3">Diagnostic Global</h3>
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-3xl font-bold" id="score-display">--</span>
-                            <div class="px-3 py-1 rounded-full text-xs font-bold uppercase" id="risk-badge">
+                <!-- PDF Viewer (Center/Left) -->
+                <div class="flex-1 relative bg-slate-900 flex flex-col">
+                    <!-- Toolbar -->
+                    <div class="h-14 border-b border-slate-800 flex items-center justify-between px-6 bg-[#0f172a]">
+                        <div class="flex items-center gap-4">
+                            <button onclick="setViewState('welcome')"
+                                class="text-slate-400 hover:text-white transition-colors">
+                                <i class="fa-solid fa-arrow-left"></i>
+                            </button>
+                            <span class="font-medium text-slate-200" id="filename-display">contrat.pdf</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold border" id="header-risk-badge">
                                 --
-                            </div>
+                            </span>
                         </div>
-                        <p class="text-sm text-gray-300" id="global-summary">
-                            --
-                        </p>
                     </div>
 
-                    <!-- Clauses List -->
-                    <div class="flex-1 overflow-y-auto pr-2 space-y-3" id="clauses-list">
-                        <!-- Clauses will be injected here via JS -->
+                    <!-- PDF Embed -->
+                    <div class="flex-1 w-full h-full bg-slate-900 relative">
+                        <embed id="pdf-viewer" class="w-full h-full" type="application/pdf" src="">
+                    </div>
+                </div>
+
+                <!-- Analysis Sidebar (Right) -->
+                <div class="w-[400px] border-l border-slate-800 bg-[#0f172a] flex flex-col">
+                    <div class="p-6 border-b border-slate-800">
+                        <h3 class="text-lg font-semibold text-white mb-1">Rapport d'Analyse</h3>
+                        <p class="text-sm text-slate-500" id="global-subtitle">Résumé des risques détectés</p>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="clauses-list">
+                        <!-- Cards injected here -->
+                    </div>
+
+                    <div class="p-4 border-t border-slate-800 bg-slate-900/30">
+                        <button id="download-btn"
+                            class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
+                            Télécharger le rapport
+                        </button>
                     </div>
                 </div>
             </div>
 
         </div>
 
-        <!-- Input Area (Bottom) -->
-        <div class="p-4 md:p-6 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-10">
-            <div class="max-w-3xl mx-auto drop-zone-container relative">
-                <form id="upload-form" class="relative group">
-                    <input type="file" id="file-input" class="hidden" accept="application/pdf" />
-                    
-                    <div id="drop-zone" class="w-full bg-gray-800/80 hover:bg-gray-800 text-gray-100 rounded-xl border border-gray-700 hover:border-blue-500/50 shadow-lg transition-all duration-200 p-1 pl-4 pr-1 flex items-center justify-between min-h-[60px]">
-                        
-                        <div class="flex items-center text-gray-400 group-hover:text-gray-300 transition-colors cursor-pointer flex-1" onclick="document.getElementById('file-input').click()">
-                            <div class="p-2 hover:bg-gray-700 rounded-lg transition-colors mr-3">
-                                <i class="fa-solid fa-paperclip text-lg"></i>
-                            </div>
-                            <span id="input-placeholder">Télécharger un contrat PDF...</span>
-                        </div>
+        <!-- Input Bar (Bottom) - Chat Style -->
+        <div class="p-6 pb-8 bg-[#0f172a] z-10 w-full max-w-4xl mx-auto">
+            <form id="upload-form" class="relative group">
+                <input type="file" id="file-input" class="hidden" accept="application/pdf" />
 
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center flex" id="analyze-btn" disabled>
-                            <i class="fa-solid fa-arrow-up"></i>
-                        </button>
+                <div
+                    class="w-full bg-slate-800/60 hover:bg-slate-800 text-slate-200 rounded-2xl border border-slate-700/60 group-hover:border-slate-600 shadow-xl transition-all duration-300 p-2 pl-5 pr-2 flex items-center gap-4 min-h-[64px]">
+
+                    <button type="button" onclick="document.getElementById('file-input').click()"
+                        class="w-10 h-10 rounded-full bg-slate-700/50 hover:bg-slate-600 text-slate-400 hover:text-white transition-colors flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+
+                    <div class="flex-1 cursor-pointer" onclick="document.getElementById('file-input').click()">
+                        <p id="input-placeholder" class="text-slate-400 select-none">Envoyer un PDF pour analyse...</p>
                     </div>
 
-                    <!-- Draggable Overlay -->
-                    <div id="drag-overlay" class="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-500 rounded-xl flex items-center justify-center backdrop-blur-sm opacity-0 pointer-events-none transition-opacity font-semibold text-blue-200">
-                        Déposez le fichier ici
-                    </div>
-                </form>
-                <div class="text-center mt-2">
-                    <p class="text-xs text-gray-500">LexiScan peut faire des erreurs. Vérifiez toujours les informations importantes.</p>
+                    <button type="submit" id="analyze-btn" disabled
+                        class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none disabled:bg-slate-700 transition-all flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
                 </div>
-            </div>
+            </form>
+            <p class="text-center text-[11px] text-slate-600 mt-3">
+                LexiScan AI v2.0. Protégé par chiffrement de bout en bout.
+            </p>
         </div>
 
     </main>
 
-    <!-- Error Toast -->
-    <div id="error-toast" class="fixed top-5 right-5 bg-red-500 text-white px-6 py-4 rounded-xl shadow-2xl transform translate-x-full transition-transform duration-300 flex items-center gap-3 z-50">
-        <i class="fa-solid fa-circle-exclamation"></i>
-        <span id="error-message">Une erreur est survenue.</span>
-    </div>
-
-    <!-- Main Logic -->
+    <!-- JS -->
     <script src="script.js"></script>
 </body>
+
 </html>

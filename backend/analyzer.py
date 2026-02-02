@@ -1,35 +1,30 @@
 import os
 import json
-import re
 from openai import OpenAI
-from typing import List, Dict
-from models import Clause, AnalysisResult
+from typing import Dict, List
+from models import AnalysisResponse, ClauseAnalysis
 
 SYSTEM_PROMPT = """
-Tu es LexiScan, un assistant juridique spécialisé dans l'analyse de contrats et la protection des consommateurs/entrepreneurs. 
-Ton ton est professionnel, direct et pédagogique.
+Tu es LexiScan, un analyste juridique de précision.
+TA MISSION : Analyser TOUT document soumis (contrats, lettres, règles, sujets d'examen, etc.) pour y détecter les flous, les incohérences ou les risques.
 
-MISSION :
-Auditer la clause fournie pour détecter les pièges, les déséquilibres et les zones de flou.
+RÈGLES ABSOLUES :
+1.  **Analyse Systématique** : Ne refuse JAMAIS d'analyser. Même si c'est une liste de courses, cherche s'il manque des précisions (ex: quantités, prix). Si c'est un sujet d'examen, vérifie la clarté des consignes.
+2.  **Citation Exacte** : Pour chaque point soulevé, tu DOIS fournir le TEXTE EXACT (copié-collé) qui pose problème dans le champ `citation_exacte`. C'est CRUCIAL pour le surlignage.
+3.  **Constructivité** : Si tout semble "Safe", dis-le, mais cherche quand même si une petite amélioration est possible (ex: "Bien rédigé, mais pourrait préciser le délai").
 
-POINTS DE VIGILANCE PRIORITAIRES :
-1. Clauses de Résiliation (Préavis trop long, frais, difficultés de sortie).
-2. Engagements Financiers (Frais cachés, hausse tarifaire, intérêts abusifs).
-3. Responsabilité (Décharge totale de l'autre partie).
-4. Renouvellement Automatique (Tacite reconduction sans notif).
-5. Données Personnelles (Vague ou abusif).
-
-RÈGLES D'ANALYSE :
-- Si un risque est détecté, sois explicite.
-- Propose une phrase de négociation concrète si nécessaire.
-
-FORMAT DE SORTIE (JSON STRICT) :
+FORMAT JSON (Strict) :
 {
-  "risk_level": "ROUGE" | "ORANGE" | "VERT",
-  "score": 0.0 à 1.0, 
-  "legal_reference": "Article de loi ou Principe juridique (ex: Code de la Consommation)",
-  "explanation": "Explication claire du risque (ex: 'Cette clause vous empêche de...')",
-  "recommendation": "Conseil de négociation ou phrase à copier-coller (ex: 'Demander: ...')"
+  "status": "Safe" | "Avertissement" | "Critique",
+  "message": "Résumé global de l'analyse en 2 phrases.",
+  "clauses": [
+    {
+      "citation_exacte": "Le texte exact trouvé dans le document",
+      "niveau_risque": "Faible" | "Moyen" | "Critique",
+      "explication": "Pourquoi ce point est soulevé.",
+      "conseil": "Suggestion d'amélioration."
+    }
+  ]
 }
 """
 
@@ -37,58 +32,25 @@ class ContractAnalyzer:
     def __init__(self, api_key: str):
         self.client = OpenAI(api_key=api_key)
 
-    def _call_llm(self, clause_text: str) -> Dict:
+    def analyze_full_text(self, text: str) -> Dict:
         try:
+            # On prend large pour avoir du contexte
+            truncated_text = text[:20000]
+            
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"CLAUSE:\n{clause_text}"}
+                    {"role": "user", "content": f"ANALYSE CE DOCUMENT :\n\n{truncated_text}"}
                 ],
-                temperature=0.1
+                temperature=0.0
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             print(f"Error calling LLM: {e}")
             return {
-                "risk_level": "ORANGE",
-                "score": 0.5,
-                "legal_reference": "Erreur API",
-                "explanation": "Analyse échouée temporairement.",
-                "recommendation": "Réessayer."
+                "status": "Erreur",
+                "message": "Analyse impossible suite à une erreur technique.",
+                "clauses": []
             }
-
-    def analyze_text(self, text: str) -> List[Clause]:
-        # Segmentation basique (améliorable avec NLP)
-        raw_segments = [s.strip() for s in re.split(r'\n\s*\n', text) if s.strip()]
-        
-        clauses = []
-        current_index = 0
-        
-        for idx, segment in enumerate(raw_segments):
-            # Retrouver l'index dans le texte original
-            # Note: Cette méthode simple peut échouer si segments identiques. 
-            # Pour un MVP, on assume l'ordre séquentiel.
-            start = text.find(segment, current_index)
-            if start == -1:
-                start = current_index # Fallback
-            
-            end = start + len(segment)
-            current_index = end
-            
-            # Analyse LLM
-            # TODO: Pour la prod, faire des appels asynchrones/batching
-            analysis_json = self._call_llm(segment)
-            
-            analysis_result = AnalysisResult(**analysis_json)
-            
-            clauses.append(Clause(
-                id=idx,
-                text=segment,
-                start_index=start,
-                end_index=end,
-                analysis=analysis_result
-            ))
-            
-        return clauses
