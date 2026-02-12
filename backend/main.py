@@ -1,18 +1,18 @@
 import os
 import base64
 import fitz  # PyMuPDF
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import docx
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
 from dotenv import load_dotenv
 
-# Import explicit models to avoid circular dependencies or import errors
 from models import AnalysisResponse, ClauseAnalysis
 from analyzer import ContractAnalyzer
 
-# Charger les variables d'environnement
 load_dotenv()
-
-app = FastAPI(title="LexiScan API")
+app = FastAPI(title="LexiScan API v3")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,128 +25,121 @@ app.add_middleware(
 API_KEY = os.getenv("OPENAI_API_KEY")
 analyzer = ContractAnalyzer(api_key=API_KEY) if API_KEY else None
 
-@app.get("/")
-def health_check():
-    return {"status": "ok", "message": "LexiScan Backend Ready"}
+# Mock DB
+active_sessions = {}
+users_db = {} 
 
-@app.post("/analyze", response_model=AnalysisResponse)
-async def analyze_document(file: UploadFile = File(...)):
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    password_confirm: str
+    first_name: str
+    last_name: str
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+    history: List[dict] = []
+
+# --- Helpers ---
+def process_upload(file_bytes: bytes, filename: str):
     """
-    Endpoint principal : Reçoit un PDF, l'analyse via IA, surligne les risques, 
-    et renvoie le résultat + PDF modifié.
+    Retourne (texte, image_b64, type)
     """
-    if not analyzer:
-         # Fallback gracieux si pas de clé API, pour ne pas casser le front
-         return AnalysisResponse(
-             status="Erreur",
-             message="Configuration serveur incomplète (API Key manquante).",
-             clauses=[],
-             pdf_base64=None
-         )
-
-    # 1. Lire le fichier en mémoire
-    try:
-        file_bytes = await file.read()
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
-    except Exception as e:
-        print(f"PDF Error: {e}")
-        return AnalysisResponse(
-            status="Erreur",
-            message="Le fichier envoyé n'est pas un PDF valide.",
-            clauses=[],
-            pdf_base64=None
-        )
-
-    # 2. Extraire le texte (Tout le texte, pas de filtre)
-    full_text = ""
-    for page in doc:
-        full_text += page.get_text() + "\n"
+    ext = filename.split('.')[-1].lower()
     
-    # Sécurité document vide
-    if len(full_text.strip()) < 10:
-        doc_bytes = doc.tobytes()
-        pdf_b64 = base64.b64encode(doc_bytes).decode('utf-8')
-        doc.close()
-        return AnalysisResponse(
-            status="Avertissement",
-            message="Ce document semble vide ou scanné (image). L'IA ne peut pas lire le texte.",
-            clauses=[],
-            pdf_base64=pdf_b64
-        )
-
-    # 3. Analyse AI (On analyse TOUT, pas de filtre "Hors Sujet")
-    # L'analyzer a déjà été mis à jour pour être permissif, on l'appelle directement.
-    try:
-        analysis_json = analyzer.analyze_full_text(full_text)
-    except Exception as e:
-        print(f"AI Analysis Error: {e}")
-        # En cas d'erreur IA, on renvoie quand même le PDF original
-        doc_bytes = doc.tobytes()
-        pdf_b64 = base64.b64encode(doc_bytes).decode('utf-8')
-        doc.close()
-        return AnalysisResponse(
-            status="Erreur",
-            message="L'IA n'a pas pu traiter ce document (Erreur OpenAI).",
-            clauses=[],
-            pdf_base64=pdf_b64
-        )
-
-    # 4. Traitement & Surlignage (PyMuPDF)
-    clauses_data = analysis_json.get("clauses", [])
-    clauses_objs = []
+    # 1. Images
+    if ext in ['jpg', 'jpeg', 'png', 'webp', 'heic']:
+        b64 = base64.b64encode(file_bytes).decode('utf-8')
+        return None, b64, 'image'
     
-    for c_dict in clauses_data:
-        # Conversion dict -> Model
+    # 2. PDF
+    if ext == 'pdf':
         try:
-            clause_obj = ClauseAnalysis(**c_dict)
-            clauses_objs.append(clause_obj)
-            
-            # Application Surlignage
-            citation = clause_obj.citation_exacte.strip()
-            if citation and len(citation) > 3:
-                # Couleur Rouge pour tout (1, 0, 0)
-                color = (1, 0, 0)
-                
-                # On parcourt toutes les pages
-                for page in doc:
-                    # Recherche exacte
-                    insts = page.search_for(citation)
-                    
-                    # Fallback snippet (40 chars) si citation longue non trouvée
-                    if not insts and len(citation) > 60:
-                        insts = page.search_for(citation[:40])
-                    
-                    if insts:
-                        for inst in insts:
-                            annot = page.add_highlight_annot(inst)
-                            annot.set_colors(stroke=color)
-                            annot.update()
-        except Exception as e:
-            print(f"Skipping clause due to error: {e}")
-            continue
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            text = "".join([p.get_text() for p in doc])
+            doc_bytes = doc.tobytes()
+            b64 = base64.b64encode(doc_bytes).decode('utf-8')
+            return text, b64, 'pdf'
+        except: return None, None, 'error'
 
-    # 5. Encodage Final (PDF Modifié)
-    try:
-        doc_bytes = doc.tobytes()
-        pdf_base64 = base64.b64encode(doc_bytes).decode('utf-8')
-        doc.close()
-    except Exception as e:
-        print(f"PDF Encoding Error: {e}")
-        doc.close()
+    # 3. Word
+    if ext in ['docx', 'doc']:
+        try:
+            temp = f"temp_{filename}"
+            with open(temp, "wb") as f: f.write(file_bytes)
+            doc = docx.Document(temp)
+            text = "\n".join([p.text for p in doc.paragraphs])
+            os.remove(temp)
+            return text, None, 'docx'
+        except: return None, None, 'error'
+        
+    # 4. Text
+    return file_bytes.decode('utf-8', errors='ignore'), None, 'txt'
+
+# --- Auth Endpoints ---
+@app.post("/auth/register")
+def register(creds: RegisterRequest):
+    if creds.password != creds.password_confirm:
+        raise HTTPException(400, "Mots de passe différents")
+    if creds.email in users_db:
+        raise HTTPException(400, "Email déjà pris")
+    
+    users_db[creds.email] = creds.dict()
+    return {"status": "created"}
+
+@app.post("/auth/login")
+def login(creds: LoginRequest):
+    user = users_db.get(creds.email)
+    if user and user['password'] == creds.password:
+        return {"token": "valid", "user": user}
+    # Dev backdoor
+    if creds.email == "admin@lexiscan.io":
+        return {"token": "admin", "user": {"first_name": "Admin", "email": creds.email}}
+    raise HTTPException(401, "Identifiants invalides")
+
+# --- Analysis Endpoint ---
+@app.post("/analyze", response_model=AnalysisResponse)
+async def analyze(file: UploadFile = File(...), session_id: str = Form("default")):
+    content = await file.read()
+    text, img_b64, ftype = process_upload(content, file.filename)
+    
+    if ftype == 'error':
+        return AnalysisResponse(status="Erreur", message="Format non supporté", clauses=[])
+
+    if not analyzer:
+        return AnalysisResponse(status="Erreur", message="Clé API OpenAI manquante ou invalide.", clauses=[])
+
+    # Save context for chat (Text if avail, else marker for image)
+    active_sessions[session_id] = text if text else "[Image Content]"
+
+    # Call AI
+    if ftype == 'image':
+        res = analyzer.analyze_mixed_content(image_base64=img_b64)
         return AnalysisResponse(
-            status="Erreur", 
-            message="Erreur lors de la génération du PDF modifié.",
-            clauses=[],
-            pdf_base64=None
+            status=res.get("status", "Safe"),
+            message=res.get("message", "Analyse Image"),
+            clauses=[ClauseAnalysis(**c) for c in res.get("clauses", [])],
+            pdf_base64=img_b64 # Send back image to display
+        )
+    else:
+        res = analyzer.analyze_mixed_content(text_content=text)
+        return AnalysisResponse(
+            status=res.get("status", "Safe"),
+            message=res.get("message", "Analyse Texte"),
+            clauses=[ClauseAnalysis(**c) for c in res.get("clauses", [])],
+            pdf_base64=img_b64 # PDF b64 or None
         )
 
-    # 6. Réponse Finale
-    return AnalysisResponse(
-        status=analysis_json.get("status", "Safe"),
-        message=analysis_json.get("message", "Analyse terminée."),
-        clauses=clauses_objs,
-        pdf_base64=pdf_base64
-    )
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    context = active_sessions.get(req.session_id, "")
+    reply = analyzer.chat_with_document(context, req.history, req.message)
+    return {"response": reply}
 
 if __name__ == "__main__":
     import uvicorn

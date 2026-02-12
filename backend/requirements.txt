@@ -7,3 +7,7 @@ pdfplumber
 unidecode
 python-dotenv
 pymupdf
+python-docx
+passlib[bcrypt]
+python-jose[cryptography]
+sqlalchemy

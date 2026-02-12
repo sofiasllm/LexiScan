@@ -3,9 +3,11 @@ from typing import List, Optional
 
 class ClauseAnalysis(BaseModel):
     citation_exacte: str
-    niveau_risque: str  # "Faible", "Moyen", "Critique"
+    niveau_risque: str
+    type: Optional[str] = "Général"
     explication: str
     conseil: str
+    page: Optional[int] = None
 
 class AnalysisResponse(BaseModel):
     status: str

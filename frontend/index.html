@@ -1,197 +1,272 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiScan AI - Premium Analysis</title>
-    <!-- Tailwind CSS -->
+    <title>LexiScan v2.0 - Audit IA</title>
+    <!-- Tailwind CSS (CDN pour dev rapide) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        slate: {
-                            850: '#1e293b',
-                            900: '#0f172a', // The requested Dark Premium color
-                            950: '#020617',
-                        }
+                        background: '#09090b', // Zinc 950
+                        surface: '#18181b',    // Zinc 900
+                        surfaceLight: '#27272a', // Zinc 800
+                        primary: '#f4f4f5',    // Zinc 100 (White text)
+                        accent: '#38bdf8',     // Sky 400 (Subtle Tech Blue)
+                        success: '#4ade80',
+                        warning: '#fb923c',
+                        danger: '#f87171'
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
                     }
                 }
             }
         }
     </script>
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
+<body class="bg-background text-primary h-screen w-screen overflow-hidden flex selection:bg-accent selection:text-black">
 
-<body class="bg-[#0f172a] text-slate-200 font-sans h-screen flex overflow-hidden selection:bg-blue-500/30">
-
-    <!-- Sidebar (Left) -->
-    <aside class="w-72 bg-[#0f172a] border-r border-slate-800 flex flex-col hidden md:flex backdrop-blur-xl">
-        <div class="p-6">
-            <h1 class="text-xl font-semibold tracking-tight text-white flex items-center gap-2">
-                <div
-                    class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <i class="fa-solid fa-scale-balanced text-sm text-white"></i>
+    <!-- Auth Overlay (Login) -->
+    <div id="auth-overlay" class="absolute inset-0 z-50 bg-background flex items-center justify-center">
+        <div class="w-96 p-8 border border-surfaceLight rounded-2xl bg-surface shadow-2xl relative overflow-hidden">
+            <!-- Glow effect -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent to-transparent opacity-50"></div>
+            
+            <div class="text-center mb-8">
+                <div class="w-12 h-12 bg-surfaceLight rounded-xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+                    <i class="fa-solid fa-cube text-accent text-xl"></i>
                 </div>
-                LexiScan
-            </h1>
-        </div>
-
-        <div class="px-4 py-2">
-            <button id="btn-nouvelle-analyse"
-                class="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-700 text-slate-300 rounded-xl px-4 py-3 flex items-center gap-3 transition-all duration-200 group">
-                <span
-                    class="w-6 h-6 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs group-hover:scale-110 transition-transform">
-                    <i class="fa-solid fa-plus"></i>
-                </span>
-                <span class="text-sm font-medium">Nouvelle Analyse</span>
-            </button>
-        </div>
-
-        <nav id="history-list" class="flex-1 px-4 mt-6 space-y-1 overflow-y-auto">
-            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-2">Récent</div>
-            <!-- Dynamic history items will be injected here -->
-        </nav>
-
-        <div class="p-4 border-t border-slate-800">
-            <div class="flex items-center gap-3 px-2 py-2">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-400"></div>
-                <div class="text-sm">
-                    <div class="font-medium text-white">Utilisateur Pro</div>
-                    <div class="text-xs text-slate-500">Plan Premium</div>
-                </div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col relative bg-[#0f172a]">
-
-        <!-- Mobile Header -->
-        <header
-            class="md:hidden p-4 border-b border-slate-800 flex justify-between items-center bg-[#0f172a]/90 backdrop-blur">
-            <span class="font-semibold text-white">LexiScan</span>
-            <button><i class="fa-solid fa-bars text-slate-400"></i></button>
-        </header>
-
-        <!-- Content Area -->
-        <div id="content-area" class="flex-1 overflow-hidden relative flex flex-col items-center justify-center w-full">
-
-            <!-- 1. Welcome State -->
-            <div id="welcome-view" class="text-center max-w-2xl px-6 animate-fade-in">
-                <div
-                    class="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-800/50 border border-slate-700 shadow-2xl shadow-blue-900/20">
-                    <i class="fa-solid fa-wand-magic-sparkles text-2xl text-blue-400"></i>
-                </div>
-                <h2 class="text-4xl font-semibold text-white mb-4 tracking-tight">Analyse Juridique IA</h2>
-                <p class="text-slate-400 text-lg mb-8 leading-relaxed">
-                    Déposez votre contrat. Notre IA de pointe détectera les clauses abusives<br> et surlignera les
-                    risques directement sur le document.
-                </p>
+                <h2 class="text-2xl font-bold tracking-tight">LexiScan</h2>
+                <p class="text-sm text-zinc-500">Accès Sécurisé</p>
             </div>
 
-            <!-- 2. Loading State -->
-            <div id="loading-view" class="hidden flex flex-col items-center">
-                <div class="relative w-20 h-20">
-                    <!-- Custom Spinner -->
-                    <div class="absolute inset-0 rounded-full border-t-2 border-b-2 border-blue-500 animate-spin"></div>
-                    <div
-                        class="absolute inset-4 rounded-full border-t-2 border-b-2 border-indigo-400 animate-spin reverse-spin opacity-70">
-                    </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono text-zinc-500 mb-1">IDENTIFIANT</label>
+                    <input type="email" id="email" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="user@lexiscan.io">
                 </div>
-                <h3 class="mt-6 text-xl font-medium text-white animate-pulse">Analyse en cours...</h3>
-                <p class="mt-2 text-slate-500 text-sm">Lecture et surlignage du document</p>
-            </div>
-
-            <!-- 3. Results State (Overlay Fullscreen-ish) -->
-            <div id="results-view" class="hidden absolute inset-0 bg-[#0f172a] z-20 flex w-full h-full">
-
-                <!-- PDF Viewer (Center/Left) -->
-                <div class="flex-1 relative bg-slate-900 flex flex-col">
-                    <!-- Toolbar -->
-                    <div class="h-14 border-b border-slate-800 flex items-center justify-between px-6 bg-[#0f172a]">
-                        <div class="flex items-center gap-4">
-                            <button onclick="setViewState('welcome')"
-                                class="text-slate-400 hover:text-white transition-colors">
-                                <i class="fa-solid fa-arrow-left"></i>
-                            </button>
-                            <span class="font-medium text-slate-200" id="filename-display">contrat.pdf</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="px-3 py-1 rounded-full text-xs font-bold border" id="header-risk-badge">
-                                --
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- PDF Embed -->
-                    <div class="flex-1 w-full h-full bg-slate-900 relative">
-                        <embed id="pdf-viewer" class="w-full h-full" type="application/pdf" src="">
-                    </div>
+                <div>
+                    <label class="block text-xs font-mono text-zinc-500 mb-1">MOT DE PASSE</label>
+                    <input type="password" id="password" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="••••••••">
                 </div>
-
-                <!-- Analysis Sidebar (Right) -->
-                <div class="w-[400px] border-l border-slate-800 bg-[#0f172a] flex flex-col">
-                    <div class="p-6 border-b border-slate-800">
-                        <h3 class="text-lg font-semibold text-white mb-1">Rapport d'Analyse</h3>
-                        <p class="text-sm text-slate-500" id="global-subtitle">Résumé des risques détectés</p>
-                    </div>
-
-                    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="clauses-list">
-                        <!-- Cards injected here -->
-                    </div>
-
-                    <div class="p-4 border-t border-slate-800 bg-slate-900/30">
-                        <button id="download-btn"
-                            class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
-                            Télécharger le rapport
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Input Bar (Bottom) - Chat Style -->
-        <div class="p-6 pb-8 bg-[#0f172a] z-10 w-full max-w-4xl mx-auto">
-            <form id="upload-form" class="relative group">
-                <input type="file" id="file-input" class="hidden" accept="application/pdf" />
-
-                <div
-                    class="w-full bg-slate-800/60 hover:bg-slate-800 text-slate-200 rounded-2xl border border-slate-700/60 group-hover:border-slate-600 shadow-xl transition-all duration-300 p-2 pl-5 pr-2 flex items-center gap-4 min-h-[64px]">
-
-                    <button type="button" onclick="document.getElementById('file-input').click()"
-                        class="w-10 h-10 rounded-full bg-slate-700/50 hover:bg-slate-600 text-slate-400 hover:text-white transition-colors flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-paperclip"></i>
-                    </button>
-
-                    <div class="flex-1 cursor-pointer" onclick="document.getElementById('file-input').click()">
-                        <p id="input-placeholder" class="text-slate-400 select-none">Envoyer un PDF pour analyse...</p>
-                    </div>
-
-                    <button type="submit" id="analyze-btn" disabled
-                        class="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none disabled:bg-slate-700 transition-all flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-arrow-up"></i>
-                    </button>
+                <button type="submit" class="w-full py-2.5 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition-all mt-6">
+                    Connexion
+                </button>
+                <div class="mt-4 text-center">
+                    <button type="button" id="btn-show-register" class="text-xs text-zinc-600 hover:text-accent transition-colors">Créer un compte</button>
                 </div>
             </form>
-            <p class="text-center text-[11px] text-slate-600 mt-3">
-                LexiScan AI v2.0. Protégé par chiffrement de bout en bout.
-            </p>
+
+            <form id="register-form" class="space-y-4 hidden">
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-xs font-mono text-zinc-500 mb-1">PRÉNOM</label>
+                        <input type="text" id="reg-firstname" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="Jean">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-mono text-zinc-500 mb-1">NOM</label>
+                        <input type="text" id="reg-lastname" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="Dupont">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-mono text-zinc-500 mb-1">EMAIL</label>
+                    <input type="email" id="reg-email" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="votre@email.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-mono text-zinc-500 mb-1">MOT DE PASSE</label>
+                    <input type="password" id="reg-password" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="••••••••">
+                </div>
+                <div>
+                    <label class="block text-xs font-mono text-zinc-500 mb-1">CONFIRMER MOT DE PASSE</label>
+                    <input type="password" id="reg-password-confirm" class="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-accent focus:outline-none transition-colors" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-accent text-black font-semibold rounded-lg hover:bg-sky-300 transition-all mt-6">
+                    S'inscrire
+                </button>
+                <div class="mt-4 text-center">
+                    <button type="button" id="btn-show-login" class="text-xs text-zinc-600 hover:text-white transition-colors">Retour connexion</button>
+                </div>
+            </form>
         </div>
+    </div>
 
-    </main>
+    <!-- Main App Layout -->
+    <div id="app-layout" class="flex w-full h-full opacity-0 transition-opacity duration-1000"> <!-- Hidden by default until login -->
+        
+        <!-- Sidebar -->
+        <nav class="w-16 h-full border-r border-white/5 flex flex-col items-center py-6 bg-surface/50 backdrop-blur-md">
+            <div class="mb-8">
+                <i class="fa-solid fa-cube text-white text-xl"></i>
+            </div>
+            
+            <div class="flex-1 flex flex-col gap-4 w-full px-2">
+                <button class="nav-btn active" data-target="dashboard" title="Analyse">
+                    <i class="fa-solid fa-layer-group"></i>
+                </button>
+                <button class="nav-btn" data-target="history" title="Historique">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>
+                <button class="nav-btn" data-target="chat-view" title="Assistant IA">
+                    <i class="fa-solid fa-message"></i>
+                </button>
+            </div>
 
-    <!-- JS -->
+            <div class="mb-4">
+                <button class="nav-btn" data-target="settings" title="Réglages">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 relative overflow-hidden flex">
+            
+            <!-- VIEW: DASHBOARD (Split View: Doc + Analysis) -->
+            <div id="view-dashboard" class="flex w-full h-full view-section">
+                
+                <!-- Center: Viewer / Upload -->
+                <div class="flex-1 flex flex-col relative bg-black/50">
+                    <!-- Top Bar -->
+                    <header class="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-surface/30 backdrop-blur-sm">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-mono px-2 py-1 rounded bg-white/5 border border-white/5 text-zinc-400" id="doc-type-badge">DOC</span>
+                            <span class="text-sm font-medium text-zinc-300 truncate max-w-md" id="filename-display">En attente...</span>
+                        </div>
+                        <div class="flex gap-3">
+                             <input type="file" id="file-input" class="hidden" accept="*/*" />
+                             <button onclick="document.getElementById('file-input').click()" class="text-xs flex items-center gap-2 px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
+                                <i class="fa-solid fa-upload"></i> Nouveau Scan
+                             </button>
+                        </div>
+                    </header>
+
+                    <!-- Viewer Area -->
+                    <div class="flex-1 relative flex items-center justify-center overflow-hidden bg-black/20" id="viewer-container">
+                        <!-- Placeholder -->
+                        <div id="placeholder-state" class="text-center p-10">
+                            <div class="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-black">
+                                <i class="fa-solid fa-file-shield text-3xl text-zinc-600"></i>
+                            </div>
+                            <h3 class="text-xl font-light text-zinc-200 mb-2">LexiScan Intelligence</h3>
+                            <p class="text-sm text-zinc-500 font-mono">Déposez PDF, Word ou Image</p>
+                        </div>
+
+                        <!-- Embeds -->
+                        <embed id="pdf-embed" class="w-full h-full hidden" type="application/pdf">
+                        <img id="image-embed" class="max-h-full max-w-full object-contain hidden">
+                        <div id="text-viewer" class="w-full h-full hidden p-8 overflow-y-auto font-mono text-sm text-zinc-400 bg-zinc-950 whitespace-pre-wrap"></div>
+                    </div>
+                </div>
+
+                <!-- Right: Analysis Sidebar -->
+                <aside class="w-[400px] border-l border-white/5 bg-surface/30 backdrop-blur-md flex flex-col">
+                    <div class="p-6 border-b border-white/5">
+                        <div class="flex justify-between items-end mb-2">
+                            <h2 class="text-lg font-semibold tracking-wide">Audit</h2>
+                            <span id="score-display" class="text-3xl font-bold text-zinc-600">--</span>
+                        </div>
+                        <div class="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                            <div id="risk-bar" class="h-full bg-accent w-0 transition-all duration-1000"></div>
+                        </div>
+                        <p id="audit-status" class="text-xs text-zinc-500 mt-2 font-mono">EN ATTENTE</p>
+                    </div>
+
+                    <div id="clauses-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+                        <!-- Cards injected via JS -->
+                    </div>
+                </aside>
+            </div>
+
+            <!-- VIEW: HISTORY -->
+            <div id="view-history" class="hidden w-full h-full p-10 view-section">
+                <h2 class="text-2xl font-bold mb-6">Historique des Audits</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="history-grid">
+                    <!-- History Items -->
+                    <div class="p-6 rounded-xl border border-white/5 bg-surface/50 hover:bg-surface transition-colors cursor-pointer group">
+                        <div class="flex justify-between items-start mb-4">
+                            <i class="fa-regular fa-file-pdf text-2xl text-zinc-600 group-hover:text-accent transition-colors"></i>
+                            <span class="text-xs font-mono text-zinc-500">Il y a 2h</span>
+                        </div>
+                        <h3 class="font-medium text-zinc-200 mb-1">Contrat_Freelance_v2.pdf</h3>
+                        <p class="text-xs text-zinc-500">Score de sécurité: 85%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: SETTINGS -->
+            <div id="view-settings" class="hidden w-full h-full p-10 max-w-2xl mx-auto view-section">
+                <h2 class="text-2xl font-bold mb-8">Réglages</h2>
+                
+                <div class="space-y-6">
+                    <div class="p-6 rounded-xl border border-white/5 bg-surface/50">
+                        <h3 class="font-medium mb-4">Compte</h3>
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                                <i class="fa-solid fa-user text-zinc-500"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-white" id="settings-email">user@lexiscan.io</p>
+                                <p class="text-xs text-zinc-500">Plan Pro (Actif)</p>
+                            </div>
+                            <button class="ml-auto text-xs border border-white/10 px-3 py-1 rounded hover:bg-white/5">Gérer</button>
+                        </div>
+                    </div>
+
+                    <div class="p-6 rounded-xl border border-white/5 bg-surface/50">
+                        <h3 class="font-medium mb-4">Préférences d'Analyse</h3>
+                        <div class="space-y-3">
+                            <label class="flex items-center justify-between text-sm text-zinc-400">
+                                <span>Mode Strict (Zéro Tolérance)</span>
+                                <input type="checkbox" class="accent-accent" checked>
+                            </label>
+                            <label class="flex items-center justify-between text-sm text-zinc-400">
+                                <span>Auto-Correction (Experimental)</span>
+                                <input type="checkbox" class="accent-accent">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: CHAT ASSISTANT -->
+            <div id="view-chat-view" class="hidden w-full h-full flex flex-col view-section bg-black">
+                 <header class="h-16 border-b border-white/5 flex items-center px-6 bg-surface/20">
+                    <i class="fa-solid fa-robot text-accent mr-3"></i>
+                    <h2 class="font-medium">Assistant Juridique</h2>
+                 </header>
+                 
+                 <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-6">
+                     <!-- Messages -->
+                     <div class="flex gap-4">
+                         <div class="w-8 h-8 rounded bg-zinc-800 flex-shrink-0 flex items-center justify-center"><i class="fa-solid fa-cube text-xs"></i></div>
+                         <div class="bg-surface/50 p-4 rounded-xl rounded-tl-none border border-white/5 text-sm leading-relaxed max-w-2xl text-zinc-300">
+                             Bonjour. Je suis votre assistant. Une fois votre document scanné, posez-moi n'importe quelle question sur ses clauses ou ses risques.
+                         </div>
+                     </div>
+                 </div>
+
+                 <div class="p-4 border-t border-white/5 bg-surface/10">
+                     <div class="max-w-4xl mx-auto relative">
+                         <input type="text" id="chat-input" placeholder="Posez une question sur le contrat..." 
+                         class="w-full bg-zinc-900 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm focus:border-accent focus:outline-none shadow-lg shadow-black">
+                         <button id="send-chat" class="absolute right-2 top-2 w-8 h-8 bg-white text-black rounded-lg flex items-center justify-center hover:bg-zinc-200">
+                             <i class="fa-solid fa-arrow-up"></i>
+                         </button>
+                     </div>
+                 </div>
+            </div>
+
+        </main>
+    </div>
+
     <script src="script.js"></script>
 </body>
-
 </html>

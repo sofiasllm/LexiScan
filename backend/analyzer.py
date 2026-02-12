@@ -1,28 +1,26 @@
 import os
 import json
+import base64
 from openai import OpenAI
-from typing import Dict, List
-from models import AnalysisResponse, ClauseAnalysis
+from typing import Dict, List, Optional
 
-SYSTEM_PROMPT = """
-Tu es LexiScan, un analyste juridique de précision.
-TA MISSION : Analyser TOUT document soumis (contrats, lettres, règles, sujets d'examen, etc.) pour y détecter les flous, les incohérences ou les risques.
+SYSTEM_PROMPT_ANALYSIS = """
+Tu es LexiScan, une IA experte en audit de documents.
+TA MISSION : Analyser le document fourni (Texte ou Image) pour détecter les risques, les clauses abusives ou les points d'attention.
 
-RÈGLES ABSOLUES :
-1.  **Analyse Systématique** : Ne refuse JAMAIS d'analyser. Même si c'est une liste de courses, cherche s'il manque des précisions (ex: quantités, prix). Si c'est un sujet d'examen, vérifie la clarté des consignes.
-2.  **Citation Exacte** : Pour chaque point soulevé, tu DOIS fournir le TEXTE EXACT (copié-collé) qui pose problème dans le champ `citation_exacte`. C'est CRUCIAL pour le surlignage.
-3.  **Constructivité** : Si tout semble "Safe", dis-le, mais cherche quand même si une petite amélioration est possible (ex: "Bien rédigé, mais pourrait préciser le délai").
+TON : Pédagogue, Rassurant, Clair.
+FORMAT DE SORTIE : JSON uniquement.
 
-FORMAT JSON (Strict) :
 {
   "status": "Safe" | "Avertissement" | "Critique",
-  "message": "Résumé global de l'analyse en 2 phrases.",
+  "message": "Synthèse courte.",
   "clauses": [
     {
-      "citation_exacte": "Le texte exact trouvé dans le document",
+      "citation_exacte": "Texte exact (si lisible) ou description de la zone",
       "niveau_risque": "Faible" | "Moyen" | "Critique",
-      "explication": "Pourquoi ce point est soulevé.",
-      "conseil": "Suggestion d'amélioration."
+      "type": "Juridiction" | "Financier" | "Autre",
+      "explication": "Pourquoi c'est un risque.",
+      "conseil": "Quoi faire."
     }
   ]
 }
@@ -32,25 +30,53 @@ class ContractAnalyzer:
     def __init__(self, api_key: str):
         self.client = OpenAI(api_key=api_key)
 
-    def analyze_full_text(self, text: str) -> Dict:
+    def analyze_mixed_content(self, text_content: Optional[str] = None, image_base64: Optional[str] = None) -> Dict:
+        """
+        Analyse hybride : Texte OU Image (Vision)
+        """
+        messages = [{"role": "system", "content": SYSTEM_PROMPT_ANALYSIS}]
+        
+        user_content = []
+        user_content.append({"type": "text", "text": "Analyse ce document avec une rigueur extrême. Extrais les risques au format JSON."})
+
+        if text_content:
+            # Mode Texte (PDF/Docx)
+            truncated = text_content[:50000]
+            user_content.append({"type": "text", "text": f"CONTENU DU DOCUMENT :\n{truncated}"})
+        
+        if image_base64:
+            # Mode Vision (Image/Scan)
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{image_base64}",
+                    "detail": "high"
+                }
+            })
+
+        messages.append({"role": "user", "content": user_content})
+
         try:
-            # On prend large pour avoir du contexte
-            truncated_text = text[:20000]
-            
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"ANALYSE CE DOCUMENT :\n\n{truncated_text}"}
-                ],
+                messages=messages,
                 temperature=0.0
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"Error calling LLM: {e}")
-            return {
-                "status": "Erreur",
-                "message": "Analyse impossible suite à une erreur technique.",
-                "clauses": []
-            }
+            print(f"AI Error: {e}")
+            return {"status": "Erreur", "message": "Echec analyse IA", "clauses": []}
+
+    def chat_with_document(self, context: str, history: List[Dict], question: str) -> str:
+        # (Similaire à avant, on garde la logique chat)
+        messages = [{"role": "system", "content": "Tu es LexiScan. Réponds aux questions sur le document."}]
+        messages.append({"role": "system", "content": f"CONTEXTE:\n{context[:30000]}"})
+        messages.extend(history[-6:])
+        messages.append({"role": "user", "content": question})
+        
+        try:
+            res = self.client.chat.completions.create(model="gpt-4o", messages=messages)
+            return res.choices[0].message.content
+        except:
+            return "Désolé, je ne peux pas répondre."

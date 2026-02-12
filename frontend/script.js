@@ -1,264 +1,275 @@
+// State
+const state = {
+    user: null,
+    currentFile: null,
+    sessionId: "default-" + Date.now(),
+    chatHistory: []
+};
+
+// DOM Elements
+const authOverlay = document.getElementById('auth-overlay');
+const appLayout = document.getElementById('app-layout');
+const loginForm = document.getElementById('login-form');
+const registerForm = document.getElementById('register-form');
+const btnShowRegister = document.getElementById('btn-show-register');
+const btnShowLogin = document.getElementById('btn-show-login');
+
+const views = {
+    dashboard: document.getElementById('view-dashboard'),
+    history: document.getElementById('view-history'),
+    settings: document.getElementById('view-settings'),
+    chat: document.getElementById('view-chat-view')
+};
+
+const navBtns = document.querySelectorAll('.nav-btn');
 const fileInput = document.getElementById('file-input');
-const uploadForm = document.getElementById('upload-form');
-const inputPlaceholder = document.getElementById('input-placeholder');
-const analyzeBtn = document.getElementById('analyze-btn');
-const downloadBtn = document.getElementById('download-btn');
-const newAnalyzeBtn = document.getElementById('btn-nouvelle-analyse');
-const historyList = document.getElementById('history-list');
+const chatInput = document.getElementById('chat-input');
+const chatContainer = document.getElementById('chat-messages');
 
-// Views
-const welcomeView = document.getElementById('welcome-view');
-const loadingView = document.getElementById('loading-view');
-const resultsView = document.getElementById('results-view');
-
-// Elements
-const pdfViewer = document.getElementById('pdf-viewer');
-const filenameDisplay = document.getElementById('filename-display');
-const headerRiskBadge = document.getElementById('header-risk-badge');
-const globalSubtitle = document.getElementById('global-subtitle');
-const clausesList = document.getElementById('clauses-list');
-
-let currentFile = null;
-let currentPdfBase64 = null;
-
-// --- Initialization ---
+// Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    loadHistory();
+    if (localStorage.getItem('lexiscan_token')) {
+        showApp();
+    }
 });
 
-// --- Event Listeners ---
-
-// 1. New Analysis Button (Reset)
-if (newAnalyzeBtn) {
-    newAnalyzeBtn.addEventListener('click', () => {
-        resetApp();
-    });
-}
-
-// 2. File Input
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+// Auth Logic
+btnShowRegister.addEventListener('click', () => {
+    loginForm.classList.add('hidden');
+    registerForm.classList.remove('hidden');
 });
 
-// 3. Form Submit
-uploadForm.addEventListener('submit', async (e) => {
+btnShowLogin.addEventListener('click', () => {
+    registerForm.classList.add('hidden');
+    loginForm.classList.remove('hidden');
+});
+
+loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (currentFile) await analyzeFile(currentFile);
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    try {
+        const res = await fetch('http://localhost:8000/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, password})
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('lexiscan_token', data.token);
+            localStorage.setItem('lexiscan_user', JSON.stringify(data.user));
+            showApp();
+        } else {
+            alert("Identifiants incorrects.");
+        }
+    } catch (err) {
+        alert("Erreur serveur");
+    }
 });
 
-// 4. Download
-if (downloadBtn) {
-    downloadBtn.addEventListener('click', () => {
-        if (currentPdfBase64) {
-            downloadPDF(currentPdfBase64, "Rapport_LexiScan.pdf");
+registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const firstname = document.getElementById('reg-firstname').value;
+    const lastname = document.getElementById('reg-lastname').value;
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+    const confirm = document.getElementById('reg-password-confirm').value;
+
+    if(!email || !password || !firstname || !lastname) return alert("Tous les champs sont requis.");
+    if(password !== confirm) return alert("Les mots de passe ne correspondent pas.");
+    if(password.length < 6) return alert("Mot de passe trop court (min 6).");
+
+    try {
+        const res = await fetch('http://localhost:8000/auth/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                first_name: firstname,
+                last_name: lastname,
+                email: email, 
+                password: password,
+                password_confirm: confirm
+            })
+        });
+        
+        if (res.ok) {
+            alert("Compte créé ! Connectez-vous.");
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = "";
         } else {
-            alert("Aucun rapport disponible.");
+            const data = await res.json();
+            alert("Erreur: " + (data.detail || "Inconnue"));
         }
+    } catch (err) {
+        alert("Erreur serveur");
+    }
+});
+
+function showApp() {
+    authOverlay.classList.add('hidden');
+    appLayout.classList.remove('opacity-0');
+    const user = JSON.parse(localStorage.getItem('lexiscan_user') || '{}');
+    if (document.getElementById('settings-email')) {
+        document.getElementById('settings-email').textContent = user.email || 'User';
+    }
+}
+
+// Navigation
+navBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        navBtns.forEach(b => b.classList.remove('active', 'text-accent', 'bg-white/5'));
+        btn.classList.add('active', 'text-accent', 'bg-white/5');
+
+        const target = btn.dataset.target;
+        Object.values(views).forEach(v => v.classList.add('hidden'));
+        views[target].classList.remove('hidden');
     });
-}
+});
 
-// --- Logic Functions ---
+// File Upload & Analysis
+fileInput.addEventListener('change', async (e) => {
+    if (e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    state.currentFile = file;
+    
+    document.getElementById('filename-display').textContent = "Analyse en cours...";
+    document.getElementById('placeholder-state').classList.add('hidden');
+    document.getElementById('doc-type-badge').textContent = file.name.split('.').pop().toUpperCase();
 
-function handleFileSelect(file) {
-    if (file.type !== 'application/pdf') { alert("PDF uniquement."); return; }
-    currentFile = file;
-    inputPlaceholder.textContent = file.name;
-    inputPlaceholder.classList.add('text-white');
-    analyzeBtn.disabled = false;
-}
-
-function resetApp() {
-    // Reset Data
-    currentFile = null;
-    currentPdfBase64 = null;
-
-    // Reset UI Inputs
-    fileInput.value = '';
-    inputPlaceholder.textContent = "Envoyer un PDF pour analyse...";
-    inputPlaceholder.classList.remove('text-white');
-    analyzeBtn.disabled = true;
-
-    // Clear Viewer
-    pdfViewer.src = "";
-    clausesList.innerHTML = "";
-
-    // Return to Welcome
-    setViewState('welcome');
-}
-
-function setViewState(state) {
-    welcomeView.classList.add('hidden');
-    loadingView.classList.add('hidden');
-    resultsView.classList.add('hidden');
-
-    if (state === 'welcome') welcomeView.classList.remove('hidden');
-    if (state === 'loading') {
-        loadingView.classList.remove('hidden');
-        uploadForm.parentElement.classList.add('hidden');
-    }
-    if (state === 'results') {
-        resultsView.classList.remove('hidden');
-        uploadForm.parentElement.classList.add('hidden');
-    } else {
-        uploadForm.parentElement.classList.remove('hidden');
-    }
-}
-
-async function analyzeFile(file) {
-    setViewState('loading');
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', state.sessionId);
 
     try {
         const res = await fetch('http://localhost:8000/analyze', { method: 'POST', body: formData });
-
-        let data;
-        try {
-            data = await res.json();
-        } catch (err) {
-            throw new Error("Réponse serveur invalide (Non-JSON).");
-        }
-
-        if (!res.ok) throw new Error(data.detail || "Erreur backend inconnue.");
-
-        // Success
-        renderResults(data, file.name);
-        addToHistory(file.name); // Save to history
-
-    } catch (e) {
-        setViewState('welcome');
-        alert("Erreur lors de l'analyse : " + e.message);
-        resetInputOnly();
+        const data = await res.json();
+        
+        renderResults(data, file);
+    } catch (err) {
+        alert("Erreur analyse: " + err.message);
     }
-}
+});
 
-function resetInputOnly() {
-    currentFile = null;
-    inputPlaceholder.textContent = "Envoyer un PDF...";
-    inputPlaceholder.classList.remove('text-white');
-    analyzeBtn.disabled = true;
-    fileInput.value = '';
-}
+function renderResults(data, file) {
+    document.getElementById('filename-display').textContent = file.name;
 
-function renderResults(data, originalName) {
-    setViewState('results');
+    const pdfEmbed = document.getElementById('pdf-embed');
+    const imgEmbed = document.getElementById('image-embed');
+    const txtView = document.getElementById('text-viewer');
+    
+    [pdfEmbed, imgEmbed, txtView].forEach(el => el.classList.add('hidden'));
 
-    filenameDisplay.textContent = originalName;
-
-    // 1. PDF Display (Modified or Original)
     if (data.pdf_base64) {
-        currentPdfBase64 = data.pdf_base64;
-        pdfViewer.src = `data:application/pdf;base64,${data.pdf_base64}#toolbar=0&navpanes=0&scrollbar=0`;
+        if (data.pdf_base64.startsWith('JVBER')) { // PDF Signature
+            pdfEmbed.classList.remove('hidden');
+            pdfEmbed.src = `data:application/pdf;base64,${data.pdf_base64}#toolbar=0&navpanes=0`;
+        } else { // Assume Image
+            imgEmbed.classList.remove('hidden');
+            imgEmbed.src = `data:image/jpeg;base64,${data.pdf_base64}`;
+        }
     } else {
-        pdfViewer.src = ""; // Should not happen with new backend
+        txtView.classList.remove('hidden');
+        txtView.textContent = "Contenu textuel analysé (visualisation brute non dispo).";
     }
 
-    // 2. Global Status Badge
-    const status = data.status || "Info";
-    globalSubtitle.textContent = data.message || "Analyse terminée.";
+    // Score
+    let score = 100;
+    (data.clauses || []).forEach(c => {
+        if (c.niveau_risque === 'Critique') score -= 20;
+        else if (c.niveau_risque === 'Moyen') score -= 10;
+        else score -= 5;
+    });
+    score = Math.max(0, score);
+    
+    document.getElementById('score-display').textContent = `${score}%`;
+    document.getElementById('audit-status').textContent = data.message || "Analyse terminée";
+    
+    const bar = document.getElementById('risk-bar');
+    bar.style.width = `${score}%`;
+    bar.className = `h-full transition-all duration-1000 ${score > 80 ? 'bg-success' : score > 50 ? 'bg-warning' : 'bg-danger'}`;
 
-    headerRiskBadge.className = "px-3 py-1 rounded-full text-xs font-bold border transform scale-100 transition-all";
-
-    if (status === "Critique") {
-        headerRiskBadge.textContent = "CRITIQUE";
-        headerRiskBadge.className += " border-red-500 text-red-400 bg-red-500/10";
-        globalSubtitle.className = "text-sm text-red-400";
-    } else if (status === "Avertissement") {
-        headerRiskBadge.textContent = "AVERTISSEMENT";
-        headerRiskBadge.className += " border-orange-500 text-orange-400 bg-orange-500/10";
-        globalSubtitle.className = "text-sm text-orange-400";
-    } else {
-        headerRiskBadge.textContent = "SAFE";
-        headerRiskBadge.className += " border-green-500 text-green-400 bg-green-500/10";
-        globalSubtitle.className = "text-sm text-green-400";
-    }
-
-    // 3. Clauses List
-    clausesList.innerHTML = '';
-
+    // List
+    const list = document.getElementById('clauses-list');
+    list.innerHTML = '';
+    
     if (!data.clauses || data.clauses.length === 0) {
-        // Safe State
-        clausesList.innerHTML = `
-            <div class="text-center p-8 text-slate-500 animate-fade-in">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
-                    <i class="fa-solid fa-check text-2xl text-green-500"></i>
-                </div>
-                <p class="text-sm font-medium text-slate-400">Aucun risque significatif détecté.</p>
-                <p class="text-xs text-slate-600 mt-1">Le document semble conforme aux standards.</p>
-            </div>
-        `;
+        list.innerHTML = `<div class="text-zinc-500 text-center text-sm mt-10">Aucun problème détecté.</div>`;
     } else {
-        data.clauses.forEach(cl => {
+        data.clauses.forEach(c => {
             const card = document.createElement('div');
-            let color = "slate";
-            if (cl.niveau_risque === "Moyen") color = "orange";
-            if (cl.niveau_risque === "Critique") color = "red";
+            let borderClass = c.niveau_risque === 'Critique' ? 'border-danger/30 bg-danger/5' : 
+                              c.niveau_risque === 'Moyen' ? 'border-warning/30 bg-warning/5' : 'border-zinc-700 bg-surface/50';
 
-            card.className = `p-4 rounded-xl border border-${color}-900/50 bg-slate-800/30 mb-3 hover:bg-slate-800/50 transition-colors`;
+            card.className = `p-4 rounded-lg border ${borderClass} mb-3 hover:bg-white/5 transition-all cursor-pointer`;
             card.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                     <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-${color}-500/10 text-${color}-400">
-                        ${cl.niveau_risque}
-                     </span>
+                <div class="flex justify-between mb-2">
+                    <span class="text-[10px] uppercase font-bold tracking-wider text-zinc-400">${c.type || 'General'}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-black/30 text-white">${c.niveau_risque}</span>
                 </div>
-                <!-- Citation -->
-                <p class="text-xs text-slate-300 italic mb-3 border-l-2 border-${color}-500/50 pl-3 leading-relaxed">
-                    "${cl.citation_exacte}"
-                </p>
-                
-                <p class="text-xs text-slate-400 mb-3">
-                    <strong class="text-slate-300">Analyse :</strong> ${cl.explication}
-                </p>
-                <div class="text-xs text-blue-400 bg-blue-500/5 p-2 rounded border border-blue-500/10 flex gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles mt-0.5"></i>
-                    <span>${cl.conseil}</span>
+                <p class="text-xs text-zinc-300 italic mb-2 border-l-2 border-zinc-600 pl-2">"${c.citation_exacte}"</p>
+                <p class="text-xs text-zinc-400 font-light">${c.explication}</p>
+                <div class="mt-2 text-xs text-accent bg-accent/10 p-2 rounded flex gap-2 items-start">
+                    <i class="fa-solid fa-lightbulb mt-0.5"></i> <span>${c.conseil}</span>
                 </div>
             `;
-            clausesList.appendChild(card);
+            list.appendChild(card);
         });
     }
 }
 
-function downloadPDF(base64Data, fileName) {
-    const linkSource = `data:application/pdf;base64,${base64Data}`;
-    const downloadLink = document.createElement("a");
-    downloadLink.href = linkSource;
-    downloadLink.download = fileName;
-    downloadLink.click();
-}
+// Chat Logic
+document.getElementById('send-chat').addEventListener('click', sendMessage);
+chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage() });
 
-// --- History Management ---
+async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
 
-function addToHistory(filename) {
-    let history = JSON.parse(localStorage.getItem('lexiscan_history') || '[]');
-    // Add to top, remove duplicates
-    history = history.filter(h => h !== filename);
-    history.unshift(filename);
-    // Limit to 10
-    if (history.length > 10) history.pop();
+    addBubble(text, 'user');
+    chatInput.value = '';
 
-    localStorage.setItem('lexiscan_history', JSON.stringify(history));
-    loadHistory();
-}
-
-function loadHistory() {
-    if (!historyList) return;
-    const history = JSON.parse(localStorage.getItem('lexiscan_history') || '[]');
-
-    // Keep the header "RÉCENT"
-    const header = '<div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-2">Récent</div>';
-
-    if (history.length === 0) {
-        historyList.innerHTML = header + '<div class="px-3 py-2 text-xs text-slate-600 italic">Aucun historique</div>';
-        return;
+    try {
+        const res = await fetch('http://localhost:8000/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: state.sessionId,
+                message: text,
+                history: state.chatHistory
+            })
+        });
+        const data = await res.json();
+        
+        addBubble(data.response, 'ai');
+        state.chatHistory.push({role: "user", content: text});
+        state.chatHistory.push({role: "assistant", content: data.response});
+    } catch (err) {
+        addBubble("Erreur chat: " + err.message, 'ai');
     }
+}
 
-    const htmlItems = history.map(name => `
-        <div class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer group">
-            <i class="fa-regular fa-file-pdf group-hover:text-blue-400 transition-colors"></i>
-            <span class="truncate">${name}</span>
+function addBubble(text, type) {
+    const div = document.createElement('div');
+    div.className = `flex gap-4 ${type === 'user' ? 'flex-row-reverse' : ''}`;
+    
+    const avatar = type === 'user' 
+        ? `<div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-black text-xs font-bold">U</div>`
+        : `<div class="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center text-white text-xs"><i class="fa-solid fa-cube"></i></div>`;
+    
+    const bubbleClass = type === 'user' ? 'bg-accent text-black' : 'bg-surface/50 border border-white/5 text-zinc-300';
+
+    div.innerHTML = `
+        ${avatar}
+        <div class="${bubbleClass} p-4 rounded-xl ${type === 'user'?'rounded-tr-none':'rounded-tl-none'} text-sm leading-relaxed max-w-lg shadow-lg">
+            ${text}
         </div>
-    `).join('');
-
-    historyList.innerHTML = header + htmlItems;
+    `;
+    
+    chatContainer.appendChild(div);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 }
